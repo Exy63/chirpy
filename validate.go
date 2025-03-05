@@ -3,14 +3,11 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
 type SuccessResponse struct {
-	Valid bool `json:"valid"`
+	CleanedBody string `json:"cleaned_body"`
 }
 
 const maxChirpLength = 140
@@ -26,20 +23,34 @@ func handlerValidate(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&chirp); err != nil {
-		res, _ := json.Marshal(ErrorResponse{Error: "Something went wrong"})
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(res)
+		respondWithError(w, http.StatusBadRequest, "Something went wrong")
 		return
 	}
 
 	if len(chirp.Body) > maxChirpLength {
-		res, _ := json.Marshal(ErrorResponse{Error: "Chirp is too long"})
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(res))
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
 
-	res, _ := json.Marshal(SuccessResponse{Valid: true})
-	w.WriteHeader(http.StatusOK)
-	w.Write(res)
+	cleaned := getCleanedMsg(chirp.Body)
+
+	respondWithJSON(w, http.StatusOK, SuccessResponse{CleanedBody: cleaned})
+}
+
+func getCleanedMsg(msg string) string {
+	badWords := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
+	}
+
+	words := strings.Split(msg, " ")
+	for i, word := range words {
+		loweredWord := strings.ToLower(word)
+		if _, ok := badWords[loweredWord]; ok {
+			words[i] = "****"
+		}
+	}
+
+	return strings.Join(words, " ")
 }
