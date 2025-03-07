@@ -26,13 +26,13 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&parsedRequest); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Something went wrong")
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	createdUser, err := cfg.dbQueries.CreateUser(r.Context(), parsedRequest.Email)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Something went wrong")
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
