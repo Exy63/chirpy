@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/exy63/chirpy/internal/auth"
 	"github.com/exy63/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -75,6 +76,17 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
+	providedToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "You must provide a token")
+		return
+	}
+	UserID, err := auth.ValidateJWT(providedToken, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
 	type Request struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
@@ -95,7 +107,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 	params := database.CreateChirpParams{
 		Body:   cleanedBody,
-		UserID: req.UserID,
+		UserID: UserID,
 	}
 	chirp, err := cfg.dbQueries.CreateChirp(r.Context(), params)
 	if err != nil {

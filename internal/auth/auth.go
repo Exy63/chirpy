@@ -2,6 +2,8 @@ package auth
 
 import (
 	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -26,12 +28,14 @@ func CheckPasswordHash(password, hash string) error {
 }
 
 func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
+	issuedAt := time.Now()
 	claims := &jwt.RegisteredClaims{
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiresIn)),
+		IssuedAt:  jwt.NewNumericDate(issuedAt),
+		ExpiresAt: jwt.NewNumericDate(issuedAt.Add(expiresIn * time.Second)),
 		Issuer:    "chirpy",
 		Subject:   userID.String(),
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString([]byte(tokenSecret))
 	if err != nil {
@@ -52,6 +56,10 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
+		if claims.ExpiresAt.Time.Before(time.Now()) {
+			return uuid.UUID{}, errors.New("token has expired")
+		}
+
 		userID, err := uuid.Parse(claims.Subject)
 		if err != nil {
 			return uuid.UUID{}, err
@@ -60,4 +68,13 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	return uuid.UUID{}, errors.New("token has invalid claims: token is expired")
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	val := headers.Get("Authorization")
+	if val == "" {
+		return "", errors.New("authorization header value is invalid")
+	}
+	TOKEN_STRING := strings.Trim(val[len("Bearer "):], " ")
+	return TOKEN_STRING, nil
 }

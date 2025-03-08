@@ -12,14 +12,14 @@ import (
 	"github.com/google/uuid"
 )
 
-type UserResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
+	type Response struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
@@ -62,7 +62,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userResponse := UserResponse{
+	userResponse := Response{
 		ID:        createdUser.ID,
 		CreatedAt: createdUser.CreatedAt,
 		UpdatedAt: createdUser.UpdatedAt,
@@ -73,12 +73,21 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
+	type Response struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+		Token     string    `json:"token"`
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
 	type ParsedRequest struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 	var parsedRequest ParsedRequest
 
@@ -105,11 +114,23 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userResponse := UserResponse{
+	const oneHourInSeconds = 3600
+	expiresIn := parsedRequest.ExpiresInSeconds
+	if expiresIn == 0 || expiresIn > oneHourInSeconds {
+		expiresIn = oneHourInSeconds
+	}
+	token, err := auth.MakeJWT(userFromDb.ID, cfg.jwtSecret, time.Duration(expiresIn))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create a token")
+		return
+	}
+
+	userResponse := Response{
 		ID:        userFromDb.ID,
 		CreatedAt: userFromDb.CreatedAt,
 		UpdatedAt: userFromDb.UpdatedAt,
 		Email:     userFromDb.Email,
+		Token:     token,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
