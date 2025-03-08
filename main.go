@@ -17,6 +17,7 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 	platform       string
 	jwtSecret      string
+	polkaKey       string
 }
 
 func main() {
@@ -33,8 +34,9 @@ func main() {
 
 	platform := os.Getenv("PLATFORM")
 	jwtSecret := os.Getenv("JWT_SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
 
-	apiCfg := apiConfig{fileserverHits: atomic.Int32{}, dbQueries: dbQueries, platform: platform, jwtSecret: jwtSecret}
+	apiCfg := apiConfig{fileserverHits: atomic.Int32{}, dbQueries: dbQueries, platform: platform, jwtSecret: jwtSecret, polkaKey: polkaKey}
 	mux := http.NewServeMux()
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)

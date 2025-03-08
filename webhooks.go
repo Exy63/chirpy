@@ -4,11 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/exy63/chirpy/internal/auth"
 	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	if apiKey, err := auth.GetAPIKey(r.Header); err != nil || apiKey != cfg.polkaKey {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
 	type Data struct {
 		UserID string `json:"user_id"`
