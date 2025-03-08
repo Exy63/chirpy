@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -28,7 +27,7 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	uuid, err := uuid.Parse(id)
 	if err != nil {
-		fmt.Println("Ошибка при парсинге UUID:", err)
+		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -147,4 +146,44 @@ func getCleanedBody(msg string) (string, error) {
 	}
 
 	return strings.Join(words, " "), nil
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	providedToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	UserID, err := auth.ValidateJWT(providedToken, cfg.jwtSecret)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	id := r.PathValue("id")
+	uuid, err := uuid.Parse(id)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	chirp, err := cfg.dbQueries.GetChirp(r.Context(), uuid)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if chirp.UserID != UserID {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	if err := cfg.dbQueries.DeleteChirp(r.Context(), chirp.ID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
