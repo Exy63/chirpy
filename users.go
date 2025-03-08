@@ -12,14 +12,14 @@ import (
 	"github.com/google/uuid"
 )
 
-func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
-	type Response struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-	}
+type UserResponse struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
 
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
@@ -62,7 +62,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userResponse := Response{
+	userResponse := UserResponse{
 		ID:        createdUser.ID,
 		CreatedAt: createdUser.CreatedAt,
 		UpdatedAt: createdUser.UpdatedAt,
@@ -72,8 +72,81 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	respondWithJSON(w, http.StatusCreated, userResponse)
 }
 
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	defer r.Body.Close()
+
+	providedToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "You must provide a token")
+		return
+	}
+	UserID, err := auth.ValidateJWT(providedToken, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	type Request struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	var req Request
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	userFromDb, err := cfg.dbQueries.GetUser(r.Context(), UserID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	emailForUpdate := userFromDb.Email
+	if req.Email != "" {
+		emailForUpdate = req.Email
+	}
+	passwordForUpdate := userFromDb.HashedPassword
+	if req.Password != "" {
+		hashedPassword, err := auth.HashPassword(req.Password)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		passwordForUpdate = sql.NullString{
+			String: hashedPassword,
+			Valid:  true,
+		}
+	}
+
+	params := database.UpdateUserParams{
+		ID:             UserID,
+		Email:          emailForUpdate,
+		HashedPassword: passwordForUpdate,
+	}
+
+	updatedUser, err := cfg.dbQueries.UpdateUser(r.Context(), params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	userResponse := UserResponse{
+		ID:        updatedUser.ID,
+		CreatedAt: updatedUser.CreatedAt,
+		UpdatedAt: updatedUser.UpdatedAt,
+		Email:     updatedUser.Email,
+	}
+
+	respondWithJSON(w, http.StatusOK, userResponse)
+}
+
 func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
-	type Response struct {
+	type LoginUserResponse struct {
 		ID           uuid.UUID `json:"id"`
 		CreatedAt    time.Time `json:"created_at"`
 		UpdatedAt    time.Time `json:"updated_at"`
@@ -129,7 +202,7 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userResponse := Response{
+	userResponse := LoginUserResponse{
 		ID:           userFromDb.ID,
 		CreatedAt:    userFromDb.CreatedAt,
 		UpdatedAt:    userFromDb.UpdatedAt,
