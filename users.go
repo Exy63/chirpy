@@ -74,29 +74,27 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 	type Response struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		ID           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
 	type ParsedRequest struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	var parsedRequest ParsedRequest
-
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&parsedRequest); err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	if parsedRequest.Email == "" || parsedRequest.Password == "" {
 		respondWithError(w, http.StatusBadRequest, "Email and Password are required")
 		return
@@ -108,29 +106,36 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = auth.CheckPasswordHash(parsedRequest.Password, userFromDb.HashedPassword.String)
-	if err != nil {
+	if err := auth.CheckPasswordHash(parsedRequest.Password, userFromDb.HashedPassword.String); err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
 
-	const oneHourInSeconds = 3600
-	expiresIn := parsedRequest.ExpiresInSeconds
-	if expiresIn == 0 || expiresIn > oneHourInSeconds {
-		expiresIn = oneHourInSeconds
-	}
-	token, err := auth.MakeJWT(userFromDb.ID, cfg.jwtSecret, time.Duration(expiresIn))
+	accessToken, err := auth.MakeJWT(userFromDb.ID, cfg.jwtSecret, time.Duration(1*time.Hour))
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't create a token")
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create an access token")
+		return
+	}
+
+	refreshToken := auth.MakeRefreshToken()
+	const sixtyDaysInHours = 1440
+	params := database.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    userFromDb.ID,
+		ExpiresAt: time.Now().Add(time.Duration(sixtyDaysInHours) * time.Hour),
+	}
+	if _, err := cfg.dbQueries.CreateRefreshToken(r.Context(), params); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create a refresh token")
 		return
 	}
 
 	userResponse := Response{
-		ID:        userFromDb.ID,
-		CreatedAt: userFromDb.CreatedAt,
-		UpdatedAt: userFromDb.UpdatedAt,
-		Email:     userFromDb.Email,
-		Token:     token,
+		ID:           userFromDb.ID,
+		CreatedAt:    userFromDb.CreatedAt,
+		UpdatedAt:    userFromDb.UpdatedAt,
+		Email:        userFromDb.Email,
+		Token:        accessToken,
+		RefreshToken: refreshToken,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)

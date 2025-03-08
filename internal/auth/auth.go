@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -31,7 +32,7 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 	issuedAt := time.Now()
 	claims := &jwt.RegisteredClaims{
 		IssuedAt:  jwt.NewNumericDate(issuedAt),
-		ExpiresAt: jwt.NewNumericDate(issuedAt.Add(expiresIn * time.Second)),
+		ExpiresAt: jwt.NewNumericDate(issuedAt.Add(expiresIn)),
 		Issuer:    "chirpy",
 		Subject:   userID.String(),
 	}
@@ -77,4 +78,9 @@ func GetBearerToken(headers http.Header) (string, error) {
 	}
 	TOKEN_STRING := strings.Trim(val[len("Bearer "):], " ")
 	return TOKEN_STRING, nil
+}
+
+func MakeRefreshToken() string {
+	token := hex.EncodeToString(make([]byte, 32))
+	return token
 }
