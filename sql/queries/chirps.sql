@@ -12,7 +12,7 @@ RETURNING *;
 -- name: GetChirps :many
 SELECT * FROM chirps
 WHERE user_id = COALESCE(sqlc.narg('user_id'), user_id)
-ORDER BY created_at ASC;
+ORDER BY created_at COALESCE(sqlc.narg('sort'), ASC);
 
 -- name: GetChirp :one
 SELECT * FROM chirps
