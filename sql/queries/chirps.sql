@@ -11,6 +11,7 @@ RETURNING *;
 
 -- name: GetChirps :many
 SELECT * FROM chirps
+WHERE user_id = COALESCE(sqlc.narg('user_id'), user_id)
 ORDER BY created_at ASC;
 
 -- name: GetChirp :one

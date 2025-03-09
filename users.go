@@ -68,7 +68,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		CreatedAt:   createdUser.CreatedAt,
 		UpdatedAt:   createdUser.UpdatedAt,
 		Email:       createdUser.Email,
-		IsChirpyRed: createdUser.IsChirpyRed.Bool,
+		IsChirpyRed: createdUser.IsChirpyRed,
 	}
 
 	respondWithJSON(w, http.StatusCreated, userResponse)
@@ -142,7 +142,7 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 		CreatedAt:   updatedUser.CreatedAt,
 		UpdatedAt:   updatedUser.UpdatedAt,
 		Email:       updatedUser.Email,
-		IsChirpyRed: updatedUser.IsChirpyRed.Bool,
+		IsChirpyRed: updatedUser.IsChirpyRed,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)
@@ -214,7 +214,7 @@ func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 		Email:        userFromDb.Email,
 		Token:        accessToken,
 		RefreshToken: refreshToken,
-		IsChirpyRed:  userFromDb.IsChirpyRed.Bool,
+		IsChirpyRed:  userFromDb.IsChirpyRed,
 	}
 
 	respondWithJSON(w, http.StatusOK, userResponse)

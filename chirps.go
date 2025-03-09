@@ -52,7 +52,16 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	defer r.Body.Close()
 
-	chirps, err := cfg.dbQueries.GetChirps(r.Context())
+	authorID := r.URL.Query().Get("author_id")
+	userIDParam := uuid.NullUUID{}
+	if authorID != "" {
+		parsedUUID, err := uuid.Parse(authorID)
+		if err == nil {
+			userIDParam = uuid.NullUUID{UUID: parsedUUID, Valid: true}
+		}
+	}
+
+	chirps, err := cfg.dbQueries.GetChirps(r.Context(), userIDParam)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, err.Error())
 		return
